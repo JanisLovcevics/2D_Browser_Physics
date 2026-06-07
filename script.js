@@ -9,12 +9,20 @@ const resizeCanvas = (_canvas) => {
 }
 
 resizeCanvas(dyn_canvas)
+resizeCanvas(static_canvas)
 
 window.addEventListener("resize", () => {
     resizeCanvas(dyn_canvas)
+    resizeCanvas(static_canvas)
+
+    draw_polygon(square.vertices, "green", ctx_static)
 })
 
-const ctx = dyn_canvas.getContext("2d")
+const ctx_dyn = dyn_canvas.getContext("2d")
+const ctx_static = static_canvas.getContext("2d")
+
+const image = new Image()
+image.src = "https://cdn-icons-png.flaticon.com/512/744/744546.png"
 
 let triangle = {
     vertices : [
@@ -24,7 +32,8 @@ let triangle = {
     ],
     velocity : {x: 150, y: 0},
     mass : 1,
-    invMass : 1 / 1
+    invMass : 1 / 1,
+    sprite : image
 }
 let square = {
     vertices : [
@@ -40,19 +49,43 @@ let square = {
 
 let objects = [triangle, square]
 
-const draw_polygon = (polygon, color = "red") => {
-    ctx.beginPath()
+let static_objects = [square]
+let dyn_objects = [triangle]
 
-    ctx.moveTo(polygon[0].x, polygon[0].y)
+const draw_polygon = (polygon, color, canvas) => {
+    canvas.beginPath()
+
+    canvas.moveTo(polygon[0].x, polygon[0].y)
 
     for (let i = 1; i < polygon.length; i++) {
-        ctx.lineTo(polygon[i].x, polygon[i].y)
+        canvas.lineTo(polygon[i].x, polygon[i].y)
     }
 
-    ctx.closePath()
+    canvas.closePath()
 
-    ctx.fillStyle = color
-    ctx.fill()
+    canvas.fillStyle = color
+    canvas.fill()
+}
+
+const draw_sprite = (obj) => {
+    if (!obj.sprite || !obj.sprite.complete) return
+
+    let minX = Infinity
+    let maxX = -Infinity
+    let minY = Infinity
+    let maxY = -Infinity
+
+    for (let p of obj.vertices) {
+        if (p.x < minX) minX = p.x
+        if (p.x > maxX) maxX = p.x
+        if (p.y < minY) minY = p.y
+        if (p.y > maxY) maxY = p.y
+    }
+
+    const width = maxX - minX
+    const height = maxY - minY
+
+    ctx_dyn.drawImage(obj.sprite, minX, minY, width, height)
 }
 
 const dotProduct = (v1, v2) => v1.x * v2.x + v1.y * v2.y;
@@ -102,7 +135,29 @@ const getCenter = (vertices) => {
     }
 }
 
+const getAABB = (vertices) => {
+    let minX = Infinity, maxX = -Infinity;
+    let minY = Infinity, maxY = -Infinity;
+
+    for (let p of vertices) {
+        if (p.x < minX) minX = p.x
+        if (p.x > maxX) maxX = p.x
+        if (p.y < minY) minY = p.y
+        if (p.y > maxY) maxY = p.y
+    }
+
+    return {minX, maxX, minY, maxY}
+}
+
 const check_collision = (polyA, polyB) => {
+    const aabbA = getAABB(polyA.vertices)
+    const aabbB = getAABB(polyB.vertices)
+
+    if (aabbA.minX > aabbB.maxX || aabbA.maxX < aabbB.minX ||
+        aabbA.minY > aabbB.maxY || aabbA.maxY < aabbB.minY ) {
+        return false
+    }
+
     const allAxes = [...getAxes(polyA.vertices), ...getAxes(polyB.vertices)]
 
     let minOverlap = Infinity
@@ -241,7 +296,7 @@ const check_border_collision = (obj) => {
 }
 
 const updatePositions = (deltaTime) => {
-    for (let obj of objects) {
+    for (let obj of dyn_objects) {
         let moveX = obj.velocity.x * deltaTime
         let moveY = obj.velocity.y * deltaTime
 
@@ -262,7 +317,7 @@ const update = (deltaTime) => {
 let lastTime = 0
 
 const clearCanvas = () => {
-    ctx.clearRect(0, 0, dyn_canvas.width, dyn_canvas.height)
+    ctx_dyn.clearRect(0, 0, dyn_canvas.width, dyn_canvas.height)
 }
 
 const gameLoop = (timestamp) => {
@@ -279,11 +334,11 @@ const gameLoop = (timestamp) => {
 
     clearCanvas()
 
-    draw_polygon(triangle.vertices)
-    draw_polygon(square.vertices, "green")
+    draw_sprite(triangle)
 
 
     requestAnimationFrame(gameLoop)
 }
 
+draw_polygon(square.vertices, "green", ctx_static)
 requestAnimationFrame(gameLoop)
