@@ -310,6 +310,19 @@ const updatePositions = (deltaTime) => {
 }
 
 const update = (deltaTime) => {
+    const acceleration = 2000
+    const friction = 0.98
+
+    if (keys.w) triangle.velocity.y -= acceleration * deltaTime
+    if (keys.a) triangle.velocity.x -= acceleration * deltaTime
+    if (keys.s) triangle.velocity.y += acceleration * deltaTime
+    if (keys.d) triangle.velocity.x += acceleration * deltaTime
+
+    for (let obj of dyn_objects) {
+        obj.velocity.x *= friction
+        obj.velocity.y *= friction
+    }
+
     updatePositions(deltaTime)
     updatePhysics(objects)
 }
@@ -319,6 +332,23 @@ let lastTime = 0
 const clearCanvas = () => {
     ctx_dyn.clearRect(0, 0, dyn_canvas.width, dyn_canvas.height)
 }
+
+const keys = {
+    w: false,
+    a: false,
+    s: false,
+    d: false
+}
+
+window.addEventListener("keydown", (e) => {
+    const key = e.key.toLowerCase()
+    if(keys.hasOwnProperty(key)) keys[key] = true
+})
+
+window.addEventListener("keyup", (e) => {
+    const key = e.key.toLowerCase()
+    if(keys.hasOwnProperty(key)) keys[key] = false
+})
 
 const gameLoop = (timestamp) => {
     if (lastTime === 0) {
