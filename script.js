@@ -15,8 +15,7 @@ window.addEventListener("resize", () => {
     resizeCanvas(dyn_canvas)
     resizeCanvas(static_canvas)
 
-    draw_polygon(square.vertices, "yellow", ctx_static)
-    draw_polygon(walls[0].vertices, "green", ctx_static)
+    draw_objects(static_objects, ctx_static)
 })
 
 const ctx_dyn = dyn_canvas.getContext("2d")
@@ -27,7 +26,7 @@ image.src = "https://cdn-icons-png.flaticon.com/512/744/744546.png"
 
 let triangle = {
     vertices : [
-        {x: 300, y: 440},
+        {x: 300, y: 300},
         {x: 260, y: 370},
         {x: 340, y: 370}
     ],
@@ -36,7 +35,8 @@ let triangle = {
     invMass : 1 / 1,
     sprite : image,
     tag: "player",
-    restitution: 1
+    restitution: 1,
+    color: "blue"
 }
 let circle = {
     center: {x: 500, y: 500},
@@ -45,7 +45,8 @@ let circle = {
     mass: 1,
     invMass: 1,
     tag: "ball",
-    restitution: 0.8
+    restitution: 0.8,
+    color: "red"
 }
 let square = {
     vertices : [
@@ -58,20 +59,22 @@ let square = {
     mass: 10,
     invMass: 0,
     tag: null,
-    restitution: 0.5
+    restitution: 0.5,
+    color: "yellow"
 }
 let walls = [
     ground = {
         vertices: [
             {x: 0, y: static_canvas.height - 100},
-            {x: 1000, y: static_canvas.height - 100},
-            {x: 1000, y: static_canvas.height},
+            {x: static_canvas.width, y: static_canvas.height - 100},
+            {x: static_canvas.width, y: static_canvas.height},
             {x: 0, y: static_canvas.height}
         ],
         velocity : {x: 0, y: 0},
         invMass : 0,
         tag: "ground",
-        restitution: 0.2
+        restitution: 0.2,
+        color: "green"
     }
 ]
 
@@ -80,30 +83,41 @@ let objects = [triangle, square, ...walls, circle]
 let static_objects = [square, ...walls]
 let dyn_objects = [triangle, circle]
 
-const draw_polygon = (polygon, color, canvas) => {
-    canvas.beginPath()
-
-    canvas.moveTo(polygon[0].x, polygon[0].y)
-
-    for (let i = 1; i < polygon.length; i++) {
-        canvas.lineTo(polygon[i].x, polygon[i].y)
-    }
-
-    canvas.closePath()
-
-    canvas.fillStyle = color
-    canvas.fill()
+const draw_objects = (objects, ctx) => {
+    for (let obj of objects) {
+        if (obj.radius) {
+            draw_circle(obj, obj.color, ctx)
+        }
+        else {
+            draw_polygon(obj.vertices, obj.color, ctx)
+        }
+    }
 }
 
-const draw_circle = (circleObj, color, canvas) => {
-    canvas.beginPath()
+const draw_polygon = (polygon, color, ctx) => {
+    ctx.beginPath()
+
+    ctx.moveTo(polygon[0].x, polygon[0].y)
+
+    for (let i = 1; i < polygon.length; i++) {
+        ctx.lineTo(polygon[i].x, polygon[i].y)
+    }
+
+    ctx.closePath()
+
+    ctx.fillStyle = color
+    ctx.fill()
+}
+
+const draw_circle = (circleObj, color, ctx) => {
+    ctx.beginPath()
     
-    canvas.arc(circleObj.center.x, circleObj.center.y, circleObj.radius, 0, Math.PI * 2)
+    ctx.arc(circleObj.center.x, circleObj.center.y, circleObj.radius, 0, Math.PI * 2)
     
-    canvas.closePath()
+    ctx.closePath()
     
-    canvas.fillStyle = color
-    canvas.fill()
+    ctx.fillStyle = color
+    ctx.fill()
 }
 
 const draw_sprite = (obj) => {
@@ -513,13 +527,10 @@ const gameLoop = (timestamp) => {
 
     clearCanvas()
 
-    draw_polygon(triangle.vertices, "blue", ctx_dyn)
-    draw_circle(circle, "red", ctx_dyn)
-
+    draw_objects(dyn_objects, ctx_dyn)
 
     requestAnimationFrame(gameLoop)
 }
 
-draw_polygon(square.vertices, "yellow", ctx_static)
-draw_polygon(walls[0].vertices, "green", ctx_static)
+draw_objects(static_objects, ctx_static)
 requestAnimationFrame(gameLoop)
