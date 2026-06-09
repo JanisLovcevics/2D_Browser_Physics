@@ -450,10 +450,9 @@ const updatePositions = (deltaTime) => {
 }
 
 const update_acceleration = (deltaTime) => {
-    const acceleration = 2000
-    const falling_acceleration = 500
+    const acceleration = 2500
+    const falling_acceleration = 2000
     const friction = 0.98
-    const max_falling_velocity = 2500
 
     if (keys.a) triangle.velocity.x -= acceleration * deltaTime
     if (keys.d) triangle.velocity.x += acceleration * deltaTime
@@ -461,10 +460,11 @@ const update_acceleration = (deltaTime) => {
     for (let obj of dyn_objects) {
         obj.velocity.x *= friction
         obj.velocity.y += falling_acceleration * deltaTime
-        if (Math.abs(obj.velocity.y) > max_falling_velocity) {
-            obj.velocity.y = max_falling_velocity
-        }
     }
+}
+
+const jump = () => {
+    triangle.velocity.y -= 1000
 }
 
 const update = (deltaTime) => {
@@ -489,6 +489,9 @@ const keys = {
 window.addEventListener("keydown", (e) => {
     const key = e.key.toLowerCase()
     if(keys.hasOwnProperty(key)) keys[key] = true
+    if (key === "w") {
+        jump()
+    }
 })
 
 window.addEventListener("keyup", (e) => {
