@@ -24,6 +24,17 @@ const ctx_static = static_canvas.getContext("2d")
 const image = new Image()
 image.src = "https://cdn-icons-png.flaticon.com/512/744/744546.png"
 
+let playerCapsule = {
+    p1: {x: 100, y: 300},
+    p2: {x: 100, y: 350},
+    radius: 20,
+    velocity: {x: 0, y: 0},
+    mass: 1,
+    invMass: 1,
+    tag: "player",
+    restitution: 0.1,
+    color: "black"
+}
 let triangle = {
     vertices : [
         {x: 300, y: 300},
@@ -34,7 +45,7 @@ let triangle = {
     mass : 1,
     invMass : 1 / 1,
     sprite : image,
-    tag: "player",
+    tag: "triangle",
     restitution: 1,
     color: "blue"
 }
@@ -44,7 +55,7 @@ let circle = {
     velocity: {x: 0, y: 100},
     mass: 1,
     invMass: 1,
-    tag: "ball",
+    tag: "ball",
     restitution: 0.8,
     color: "red"
 }
@@ -78,20 +89,41 @@ let walls = [
     }
 ]
 
-let objects = [triangle, square, ...walls, circle]
+let objects = [triangle, square, ...walls, circle, playerCapsule]
 
 let static_objects = [square, ...walls]
-let dyn_objects = [triangle, circle]
+let dyn_objects = [triangle, circle, playerCapsule]
 
 const draw_objects = (objects, ctx) => {
     for (let obj of objects) {
-        if (obj.radius) {
+        if (obj.p1 && obj.radius) {
+            draw_capsule(obj, obj.color, ctx)
+        }
+        else if (obj.radius) {
             draw_circle(obj, obj.color, ctx)
         }
         else {
             draw_polygon(obj.vertices, obj.color, ctx)
         }
     }
+}
+
+const draw_capsule = (capsule, color, ctx) => {
+    ctx.beginPath()
+
+    ctx.arc(capsule.p1.x, capsule.p1.y, capsule.radius, 0, Math.PI * 2)
+    ctx.arc(capsule.p2.x, capsule.p2.y, capsule.radius, 0, Math.PI * 2)
+
+    ctx.rect(
+        capsule.p1.x - capsule.radius,
+        capsule.p1.y,
+        capsule.radius * 2,
+        capsule.p2.y - capsule.p1.y
+    )
+
+    ctx.fillStyle = color
+    ctx.fill()
+    ctx.closePath()
 }
 
 const draw_polygon = (polygon, color, ctx) => {
@@ -183,6 +215,16 @@ const getCircleAxis = (circle, poly) => {
 }
 
 const projectShape = (shape, axis) => {
+    if (shape.p1 && shape.radius) {
+        const proj1 = dotProduct(shape.p1, axis)
+        const proj2 = dotProduct(shape.p2, axis)
+
+        let min = Math.min(proj1, proj2) - shape.radius
+        let max = Math.max(proj1, proj2) + shape.radius
+
+        return {min, max}
+    }
+
     if (shape.radius) {
         const projection = dotProduct(shape.center, axis)
         return {
@@ -205,6 +247,12 @@ const projectShape = (shape, axis) => {
 }
 
 const getCenter = (obj) => {
+    if (obj.p1 && obj.radius) {
+        return {
+            x: (obj.p1.x + obj.p2.x) / 2,
+            y: (obj.p1.y + obj.p2.y) / 2
+        }
+    }
     if (obj.radius) {
         return {
             x: obj.center.x,
@@ -227,6 +275,15 @@ const getCenter = (obj) => {
 }
 
 const getAABB = (shape) => {
+    if (shape.p1 && shape.radius) {
+        return {
+            minX: Math.min(shape.p1.x, shape.p2.x) - shape.radius,
+            maxX: Math.max(shape.p1.x, shape.p2.x) + shape.radius,
+            minY: Math.min(shape.p1.y, shape.p2.y) - shape.radius,
+            maxY: Math.max(shape.p1.y, shape.p2.y) + shape.radius
+        }
+    }
+
     if (shape.radius) {
         return {
             minX: shape.center.x - shape.radius,
@@ -249,6 +306,39 @@ const getAABB = (shape) => {
     return {minX, maxX, minY, maxY}
 }
 
+const getCapsuleNormal = (capsule) => {
+    const dx = capsule.p2.x - capsule.p1.x
+    const dy = capsule.p2.y - capsule.p1.y
+    const lenght = Math.sqrt(dx**2 + dy**2)
+
+    return {x: -dy / lenght, y: dx / lenght}
+}
+
+const getCapsuleCircleAxis = (capsule, circle) => {
+    const v = {x: capsule.p2.x - capsule.p1.x, y: capsule.p2.y - capsule.p1.y}
+    const w = {x: circle.center.x - capsule.p1.x, y: circle.center.y - capsule.p1.y}
+
+    vSq = v.x**2 + v.y**2
+
+    let t = (w.x * v.x + w.y * v.y) / vSq
+    t = Math.max(0, Math.min(1, t))
+
+    const closestPoint = {
+        x: capsule.p1.x + t * v.x,
+        y: capsule.p1.y + t * v.y
+    }
+
+    const axis = {
+        x: circle.center.x - closestPoint.x,
+        y: circle.center.y - closestPoint.y
+    }
+
+    const lenght = Math.sqrt(axis.x**2 + axis.y**2)
+    if (lenght === 0) return {x: 0, y: 1}
+
+    return {x: axis.x / lenght, y: axis.y / lenght}
+}
+
 const check_collision = (objA, objB) => {
     const aabbA = getAABB(objA)
     const aabbB = getAABB(objB)
@@ -259,7 +349,7 @@ const check_collision = (objA, objB) => {
     }
 
 
-    if (objA.radius && objB.radius) {
+    if (objA.radius && !objA.p1 && objB.radius && !objB.p1) {
         const dx = objA.center.x - objB.center.x
         const dy = objA.center.y - objB.center.y
         const distance = Math.sqrt(dx**2 + dy**2)
@@ -278,10 +368,30 @@ const check_collision = (objA, objB) => {
     const allAxes = []
 
     if (objA.vertices) allAxes.push(...getAxes(objA.vertices))
-    else if (objA.radius && objB.vertices) allAxes.push(getCircleAxis(objA, objB))
+    else if (objA.radius && !objA.p1 && objB.vertices) allAxes.push(getCircleAxis(objA, objB))
 
-    if (objB.vertices) allAxes.push(...getAxes(objB.vertices))
-    else if (objB.radius && objA.vertices) allAxes.push(getCircleAxis(objB, objA))
+    if (objB.vertices) allAxes.push(...getAxes(objB.vertices))
+    else if (objB.radius && !objB.p1 && objA.vertices) allAxes.push(getCircleAxis(objB, objA))
+
+    if (objA.p1 && objA.radius) {
+        allAxes.push(getCapsuleNormal(objA))
+        if (objB.vertices) {
+            allAxes.push(getCircleAxis({center: {x: objA.p1.x, y: objA.p1.y}}, objB))
+            allAxes.push(getCircleAxis({center: {x: objA.p2.x, y: objA.p2.y}}, objB))
+        } else if (objB.radius && !objB.p1) {
+            allAxes.push(getCapsuleCircleAxis(objA, objB))
+        }
+    }
+
+    if (objB.p1 && objB.radius) {
+        allAxes.push(getCapsuleNormal(objB))
+        if (objA.vertices) {
+            allAxes.push(getCircleAxis({center: {x: objB.p1.x, y: objB.p1.y}}, objA))
+            allAxes.push(getCircleAxis({center: {x: objB.p2.x, y: objB.p2.y}}, objA))
+        } else if (objA.radius && !objA.p1) {
+            allAxes.push(getCapsuleCircleAxis(objB, objA))
+        }
+    }
 
     let minOverlap = Infinity
     let collisionNormal = null
@@ -337,7 +447,11 @@ const resolvePosition = (objA, objB, normal, depth) => {
     const pushX_B = normal.x * pushFactorB
     const pushY_B = normal.y * pushFactorB
     
-    if (objA.radius){
+    if (objA.p1 && objA.radius) {
+        objA.p1.x -= pushX_A; objA.p1.y -= pushY_A;
+        objA.p2.x -= pushX_A; objA.p2.y -= pushY_A;
+    }
+    else if (objA.radius){
         objA.center.x -= pushX_A
         objA.center.y -= pushY_A
     }
@@ -348,7 +462,11 @@ const resolvePosition = (objA, objB, normal, depth) => {
         }
     }
 
-    if (objB.radius ) {
+    if (objB.p1 && objB.radius) {
+        objB.p1.x += pushX_B; objB.p1.y += pushY_B;
+        objB.p2.x += pushX_B; objB.p2.y += pushY_B;
+    }
+    else if (objB.radius ) {
         objB.center.x += pushX_B
         objB.center.y += pushY_B
     }
@@ -418,7 +536,13 @@ const check_border_collision = (obj) => {
     let minY = Infinity;
     let maxY = -Infinity;
 
-    if (obj.radius) {
+    if (obj.p1 && obj.radius) {
+        minX = Math.min(obj.p1.x, obj.p2.x) - obj.radius;
+        maxX = Math.max(obj.p1.x, obj.p2.x) + obj.radius;
+        minY = Math.min(obj.p1.y, obj.p2.y) - obj.radius;
+        maxY = Math.max(obj.p1.y, obj.p2.y) + obj.radius;
+    }
+    else if (obj.radius) {
         minX = obj.center.x - obj.radius
         maxX = obj.center.x + obj.radius
         minY = obj.center.y - obj.radius
@@ -453,7 +577,13 @@ const updatePositions = (deltaTime) => {
         let moveX = obj.velocity.x * deltaTime
         let moveY = obj.velocity.y * deltaTime
 
-        if (obj.radius) {
+        if(obj.p1 && obj.radius) {
+            obj.p1.x += moveX
+            obj.p1.y += moveY
+            obj.p2.x += moveX
+            obj.p2.y += moveY
+        }
+        else if (obj.radius) {
             obj.center.x += moveX
             obj.center.y += moveY
         }
@@ -473,19 +603,30 @@ const update_acceleration = (deltaTime) => {
     const falling_acceleration = 2000
     const friction = 0.98
 
-    if (keys.a) triangle.velocity.x -= acceleration * deltaTime
-    if (keys.d) triangle.velocity.x += acceleration * deltaTime
+    if (keys.a) playerCapsule.velocity.x -= acceleration * deltaTime
+    if (keys.d) playerCapsule.velocity.x += acceleration * deltaTime
 
     for (let obj of dyn_objects) {
         obj.velocity.x *= friction
         obj.velocity.y += falling_acceleration * deltaTime
     }
+
+    if (jumpBufferTimer > 0) {
+        jumpBufferTimer -= deltaTime
+    }
+
+    if (jumpBufferTimer > 0 && grounded) {
+        jump()
+        jumpBufferTimer = 0
+    }
 }
 
 let grounded = false
+let jumpBufferTimer = 0
+const JUMP_BUFFER_TIME = 0.08
 
 const jump = () => {
-    triangle.velocity.y -= 1000
+    playerCapsule.velocity.y -= 1000
 }
 
 const update = (deltaTime) => {
@@ -510,8 +651,8 @@ const keys = {
 window.addEventListener("keydown", (e) => {
     const key = e.key.toLowerCase()
     if(keys.hasOwnProperty(key)) keys[key] = true
-    if (key === "w" && grounded) {
-        jump()
+    if (key === "w") {
+        jumpBufferTimer = JUMP_BUFFER_TIME
     }
 })
 
