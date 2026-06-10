@@ -73,7 +73,7 @@ let walls = [
         velocity : {x: 0, y: 0},
         invMass : 0,
         tag: "ground",
-        restitution: 0.2,
+        restitution: 0,
         color: "green"
     }
 ]
@@ -392,7 +392,7 @@ const resolveCollision = (objA, objB, collisionData) => {
 }
 
 const updatePhysics = (objects) => {
-
+    grounded = false
     for (let i = 0; i < objects.length; i++) {
         for (let j = i + 1; j < objects.length; j++) {
             const objA = objects[i]
@@ -402,6 +402,11 @@ const updatePhysics = (objects) => {
 
             if (collision && collision.isColliding) {
                 resolveCollision(objA, objB, collision)
+                let IsPlayer = objA.tag === "player" || objB.tag === "player"
+                let IsGround = objA.tag === "ground" || objB.tag === "ground"
+                if (IsPlayer && IsGround) {
+                    grounded = true
+                }
             }
         }
     }
@@ -477,6 +482,8 @@ const update_acceleration = (deltaTime) => {
     }
 }
 
+let grounded = false
+
 const jump = () => {
     triangle.velocity.y -= 1000
 }
@@ -503,7 +510,7 @@ const keys = {
 window.addEventListener("keydown", (e) => {
     const key = e.key.toLowerCase()
     if(keys.hasOwnProperty(key)) keys[key] = true
-    if (key === "w") {
+    if (key === "w" && grounded) {
         jump()
     }
 })
