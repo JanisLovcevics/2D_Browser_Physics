@@ -21,8 +21,8 @@ window.addEventListener("resize", () => {
 const ctx_dyn = dyn_canvas.getContext("2d")
 const ctx_static = static_canvas.getContext("2d")
 
-const image = new Image()
-image.src = "https://cdn-icons-png.flaticon.com/512/744/744546.png"
+const playerSprite = new Image()
+playerSprite.src = "https://cdn-icons-png.flaticon.com/128/528/528111.png"
 
 let playerCapsule = {
     p1: {x: 100, y: 300},
@@ -33,7 +33,8 @@ let playerCapsule = {
     invMass: 1,
     tag: "player",
     restitution: 0.1,
-    color: "black"
+    color: "black",
+    sprite : playerSprite
 }
 let triangle = {
     vertices : [
@@ -44,7 +45,6 @@ let triangle = {
     velocity : {x: 0, y: 0},
     mass : 1,
     invMass : 1 / 1,
-    sprite : image,
     tag: "triangle",
     restitution: 1,
     color: "blue"
@@ -160,12 +160,31 @@ const draw_sprite = (obj) => {
     let minY = Infinity
     let maxY = -Infinity
 
-    for (let p of obj.vertices) {
-        if (p.x < minX) minX = p.x
-        if (p.x > maxX) maxX = p.x
-        if (p.y < minY) minY = p.y
-        if (p.y > maxY) maxY = p.y
-    }
+    if (obj.p1 && obj.radius) {
+        minX = Math.min(obj.p1.x, obj.p2.x) - obj.radius
+        maxX = Math.max(obj.p1.x, obj.p2.x) + obj.radius
+        minY = Math.min(obj.p1.y, obj.p2.y) - obj.radius
+        maxY = Math.max(obj.p1.y, obj.p2.y) + obj.radius
+    }
+    else if (obj.radius && !obj.p1) {
+        minX = obj.center.x - obj.radius
+        maxX = obj.center.x + obj.radius
+        minY = obj.center.y - obj.radius
+        maxY = obj.center.y + obj.radius
+    }
+    else {
+        for (let p of obj.vertices) {
+            if (p.x < minX) minX = p.x
+            if (p.x > maxX) maxX = p.x
+            if (p.y < minY) minY = p.y
+            if (p.y > maxY) maxY = p.y
+        }
+    }
+    
+    minX = Math.round(minX)
+    maxX = Math.round(maxX)
+    minY = Math.round(minY)
+    maxY = Math.round(maxY)
 
     const width = maxX - minX
     const height = maxY - minY
@@ -675,7 +694,8 @@ const gameLoop = (timestamp) => {
 
     clearCanvas()
 
-    draw_objects(dyn_objects, ctx_dyn)
+    draw_objects([triangle, circle], ctx_dyn)
+    draw_sprite(playerCapsule)
 
     requestAnimationFrame(gameLoop)
 }
