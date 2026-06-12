@@ -92,7 +92,7 @@ let walls = [
 let objects = [triangle, square, ...walls, circle, playerCapsule]
 
 let static_objects = [square, ...walls]
-let dyn_objects = [triangle, circle, playerCapsule]
+let dyn_objects = [triangle, playerCapsule, circle]
 
 const draw_objects = (objects, ctx) => {
     for (let obj of objects) {
@@ -544,6 +544,13 @@ const updatePhysics = (objects) => {
                 if (IsPlayer && IsGround) {
                     grounded = true
                 }
+                if (objA.tag === "ball" && objB.tag === "player") {
+                    const playerPos = getCenter(objA);
+                    const ballPos = getCenter(objB);
+                    if (collision.normal.y < -0.5 && Math.abs(playerPos.x - ballPos.x) < 30) {
+                        objA.center.y -= 600
+                    }
+                }
             }
         }
     }
@@ -618,7 +625,7 @@ const updatePositions = (deltaTime) => {
 }
 
 const update_acceleration = (deltaTime) => {
-    const acceleration = 2500
+    const acceleration = 1250
     const falling_acceleration = 2000
     const friction = 0.98
 
