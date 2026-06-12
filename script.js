@@ -59,6 +59,16 @@ let circle = {
     restitution: 0.8,
     color: "red"
 }
+let circle2 = {
+    center: {x: 1000, y: 500},
+    radius: 50,
+    velocity: {x: 0, y: 100},
+    mass: 1,
+    invMass: 1,
+    tag: "ball",
+    restitution: 0.8,
+    color: "red"
+}
 let square = {
     vertices : [
         {x: 1000, y: 200},
@@ -89,10 +99,10 @@ let walls = [
     }
 ]
 
-let objects = [triangle, square, ...walls, circle, playerCapsule]
+let objects = [triangle, square, ...walls, circle, playerCapsule, circle2]
 
 let static_objects = [square, ...walls]
-let dyn_objects = [triangle, playerCapsule, circle]
+let dyn_objects = [triangle, playerCapsule, circle, circle2]
 
 const draw_objects = (objects, ctx) => {
     for (let obj of objects) {
@@ -544,11 +554,15 @@ const updatePhysics = (objects) => {
                 if (IsPlayer && IsGround) {
                     grounded = true
                 }
-                if (objA.tag === "ball" && objB.tag === "player") {
-                    const playerPos = getCenter(objA);
-                    const ballPos = getCenter(objB);
-                    if (collision.normal.y < -0.5 && Math.abs(playerPos.x - ballPos.x) < 30) {
-                        objA.center.y -= 600
+                let player = (objA.tag === "player") ? objA : (objB.tag === "player") ? objB : null
+                let other = (objA.tag === "player") ? objB : (objB.tag === "player") ? objA : null
+                if (player && other && other.tag === "ball") {
+                    const playerPos = getCenter(player);
+                    const ballPos = getCenter(other);
+                    let normal = (objA === player) ? collision.normal : {x: -collision.normal.x, y: -collision.normal.y};
+                    console.log(normal)
+                    if (normal.y > 0.5 && Math.abs(playerPos.x - ballPos.x) < 30) {
+                        other.center.y -= 600
                     }
                 }
             }
@@ -701,7 +715,7 @@ const gameLoop = (timestamp) => {
 
     clearCanvas()
 
-    draw_objects([triangle, circle], ctx_dyn)
+    draw_objects([triangle, circle, circle2], ctx_dyn)
     draw_sprite(playerCapsule)
 
     requestAnimationFrame(gameLoop)
