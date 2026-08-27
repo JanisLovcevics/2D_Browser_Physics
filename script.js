@@ -53,6 +53,8 @@ class GameObject {
             GameObject.dynamicGameObjects.push(this)
         }
         else {
+            this.mass = null
+            this.invMass = 0
             GameObject.staticGameObjects.push(this)
         }
     }
@@ -89,6 +91,19 @@ let player = new Capsule({
     tag: "player",
     sprite: playerSprite
 });
+
+let ground = new Polygon({
+    vertices : [
+        {x: 0, y: static_canvas.height - 100},
+        {x: static_canvas.width, y: static_canvas.height - 100},
+        {x: static_canvas.width, y: static_canvas.height},
+        {x: 0, y: static_canvas.height}
+    ],
+    tag : "ground",
+    color : "green",
+    dynamic : false,
+    restitution: 0,
+})
 
 
 const draw_objects = (objects, ctx) => {
@@ -604,24 +619,22 @@ const updatePositions = (deltaTime) => {
         let moveX = obj.velocity.x * deltaTime
         let moveY = obj.velocity.y * deltaTime
 
-        if(obj.p1 && obj.radius) {
+        if(obj instanceof Capsule) {
             obj.p1.x += moveX
             obj.p1.y += moveY
             obj.p2.x += moveX
             obj.p2.y += moveY
         }
-        else if (obj.radius) {
+        else if (obj instanceof Circle) {
             obj.center.x += moveX
             obj.center.y += moveY
         }
-        else {
+        else if (obj instanceof Polygon) {
             for (let p of obj.vertices) {
                 p.x += moveX
                 p.y += moveY
             }
         }
-
-        check_border_collision(obj)
     }
 }
 
