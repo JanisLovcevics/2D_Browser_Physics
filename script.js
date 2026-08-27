@@ -15,7 +15,7 @@ window.addEventListener("resize", () => {
     resizeCanvas(dyn_canvas)
     resizeCanvas(static_canvas)
 
-    draw_objects(static_objects, ctx_static)
+    draw_objects(GameObject.staticGameObjects, ctx_static)
 })
 
 const ctx_dyn = dyn_canvas.getContext("2d")
@@ -24,85 +24,72 @@ const ctx_static = static_canvas.getContext("2d")
 const playerSprite = new Image()
 playerSprite.src = "https://cdn-icons-png.flaticon.com/128/528/528111.png"
 
-let playerCapsule = {
+class GameObject {
+    static allGameObjects = []
+    static dynamicGameObjects = []
+    static staticGameObjects = []
+
+    constructor({
+        velocity = {x: 0, y: 0}, 
+        mass = 1, 
+        invMass = 1, 
+        tag = null,
+        restitution = 1, 
+        color = "white",
+        sprite = null,
+        dynamic = true
+    } = {}) {
+        this.velocity = velocity;
+        this.mass = mass;
+        this.invMass = invMass;
+        this.tag = tag;
+        this.restitution = restitution;
+        this.color = color;
+        this.sprite = sprite;
+        this.dynamic = dynamic
+
+        GameObject.allGameObjects.push(this)
+        if (dynamic) {
+            GameObject.dynamicGameObjects.push(this)
+        }
+        else {
+            GameObject.staticGameObjects.push(this)
+        }
+    }
+}
+
+class Polygon extends GameObject {
+    constructor({vertices = [], ...rest} = {}) {
+        super(rest)
+        this.vertices = vertices
+    }
+}
+
+class Circle extends GameObject {
+    constructor({center = {x: 0, t: 0}, radius = 1, ...rest} = {}) {
+        super(rest)
+        this.center = center
+        this.radius = radius
+    }
+}
+
+class Capsule extends GameObject{
+    constructor({p1 = {x: 0, y: 0}, p2 = {x: 0, y: 0}, radius = 1, ...rest} = {}) {
+        super(rest)
+        this.p1 = p1
+        this.p2 = p2
+        this.radius = radius
+    }
+}
+
+let player = new Capsule({
     p1: {x: 100, y: 300},
     p2: {x: 100, y: 350},
     radius: 20,
-    velocity: {x: 0, y: 0},
-    mass: 1,
-    invMass: 1,
     tag: "player",
-    restitution: 0.1,
-    color: "black",
-    sprite : playerSprite
-}
-let triangle = {
-    vertices : [
-        {x: 300, y: 300},
-        {x: 260, y: 370},
-        {x: 340, y: 370}
-    ],
-    velocity : {x: 0, y: 0},
-    mass : 1,
-    invMass : 1 / 1,
-    tag: "triangle",
-    restitution: 1,
-    color: "blue"
-}
-let circle = {
-    center: {x: 500, y: 500},
-    radius: 50,
-    velocity: {x: 0, y: 100},
-    mass: 1,
-    invMass: 1,
-    tag: "ball",
-    restitution: 0.8,
-    color: "red"
-}
-let circle2 = {
-    center: {x: 1000, y: 500},
-    radius: 50,
-    velocity: {x: 0, y: 100},
-    mass: 1,
-    invMass: 1,
-    tag: "ball",
-    restitution: 0.8,
-    color: "red"
-}
-let square = {
-    vertices : [
-        {x: 1000, y: 200},
-        {x: 1200, y: 200},
-        {x: 1200, y: 400},
-        {x: 1000, y: 400}
-    ],
-    velocity : {x: 0, y: 0},
-    mass: 10,
-    invMass: 0,
-    tag: null,
-    restitution: 0.5,
-    color: "yellow"
-}
-let walls = [
-    ground = {
-        vertices: [
-            {x: 0, y: static_canvas.height - 100},
-            {x: static_canvas.width, y: static_canvas.height - 100},
-            {x: static_canvas.width, y: static_canvas.height},
-            {x: 0, y: static_canvas.height}
-        ],
-        velocity : {x: 0, y: 0},
-        invMass : 0,
-        tag: "ground",
-        restitution: 0,
-        color: "green"
-    }
-]
+    sprite: playerSprite
+});
 
-let objects = [triangle, square, ...walls, circle, playerCapsule, circle2]
-
-let static_objects = [square, ...walls]
-let dyn_objects = [triangle, playerCapsule, circle, circle2]
 
 const draw_objects = (objects, ctx) => {
     for (let obj of objects) {
@@ -170,19 +157,19 @@ const draw_sprite = (obj) => {
     let minY = Infinity
     let maxY = -Infinity
 
-    if (obj.p1 && obj.radius) {
+    if (obj instanceof Capsule) {
         minX = Math.min(obj.p1.x, obj.p2.x) - obj.radius
         maxX = Math.max(obj.p1.x, obj.p2.x) + obj.radius
         minY = Math.min(obj.p1.y, obj.p2.y) - obj.radius
         maxY = Math.max(obj.p1.y, obj.p2.y) + obj.radius
     }
-    else if (obj.radius && !obj.p1) {
+    else if (obj instanceof Circle) {
         minX = obj.center.x - obj.radius
         maxX = obj.center.x + obj.radius
         minY = obj.center.y - obj.radius
         maxY = obj.center.y + obj.radius
     }
-    else {
+    else if (obj instanceof Polygon) {
         for (let p of obj.vertices) {
             if (p.x < minX) minX = p.x
             if (p.x > maxX) maxX = p.x
@@ -613,7 +600,7 @@ const check_border_collision = (obj) => {
 }
 
 const updatePositions = (deltaTime) => {
-    for (let obj of dyn_objects) {
+    for (let obj of GameObject.dynamicGameObjects) {
         let moveX = obj.velocity.x * deltaTime
         let moveY = obj.velocity.y * deltaTime
 
@@ -643,10 +630,10 @@ const update_acceleration = (deltaTime) => {
     const falling_acceleration = 2000
     const friction = 0.98
 
-    if (keys.a) playerCapsule.velocity.x -= acceleration * deltaTime
-    if (keys.d) playerCapsule.velocity.x += acceleration * deltaTime
+    if (keys.a) player.velocity.x -= acceleration * deltaTime
+    if (keys.d) player.velocity.x += acceleration * deltaTime
 
-    for (let obj of dyn_objects) {
+    for (let obj of GameObject.dynamicGameObjects) {
         obj.velocity.x *= friction
         obj.velocity.y += falling_acceleration * deltaTime
     }
@@ -666,13 +653,13 @@ let jumpBufferTimer = 0
 const JUMP_BUFFER_TIME = 0.08
 
 const jump = () => {
-    playerCapsule.velocity.y -= 1000
+    player.velocity.y -= 1000
 }
 
 const update = (deltaTime) => {
     update_acceleration(deltaTime)
     updatePositions(deltaTime)
-    updatePhysics(objects)
+    updatePhysics(GameObject.allGameObjects)
 }
 
 let lastTime = 0
@@ -715,11 +702,11 @@ const gameLoop = (timestamp) => {
 
     clearCanvas()
 
-    draw_objects([triangle, circle, circle2], ctx_dyn)
-    draw_sprite(playerCapsule)
+    draw_objects(GameObject.dynamicGameObjects, ctx_dyn)
+    draw_sprite(player)
 
     requestAnimationFrame(gameLoop)
 }
 
-draw_objects(static_objects, ctx_static)
+draw_objects(GameObject.staticGameObjects, ctx_static)
 requestAnimationFrame(gameLoop)
