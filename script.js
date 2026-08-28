@@ -22,7 +22,7 @@ const ctx_dyn = dyn_canvas.getContext("2d")
 const ctx_static = static_canvas.getContext("2d")
 
 const playerSprite = new Image()
-playerSprite.src = "https://cdn-icons-png.flaticon.com/128/528/528111.png"
+playerSprite.src = "./Sprites/human.png"
 
 class GameObject {
     static allGameObjects = []
@@ -86,9 +86,10 @@ class Capsule extends GameObject{
 
 let player = new Capsule({
     p1: {x: 100, y: 300},
-    p2: {x: 100, y: 350},
-    radius: 20,
+    p2: {x: 100, y: 400},
+    radius: 40,
     tag: "player",
+    color: "black",
     sprite: playerSprite
 });
 
@@ -108,19 +109,22 @@ let ground = new Polygon({
 
 const draw_objects = (objects, ctx) => {
     for (let obj of objects) {
-        if (obj.p1 && obj.radius) {
+        if (obj.sprite) {
+            continue
+        }
+        if (obj instanceof Capsule) {
             draw_capsule(obj, obj.color, ctx)
         }
-        else if (obj.radius) {
+        else if (obj instanceof Circle) {
             draw_circle(obj, obj.color, ctx)
         }
-        else {
+        else if (obj instanceof Polygon) {
             draw_polygon(obj.vertices, obj.color, ctx)
         }
     }
 }
 
-const draw_capsule = (capsule, color, ctx) => {
+const draw_capsule = (capsule, color, ctx, hitbox = false) => {
     ctx.beginPath()
 
     ctx.arc(capsule.p1.x, capsule.p1.y, capsule.radius, 0, Math.PI * 2)
@@ -133,8 +137,14 @@ const draw_capsule = (capsule, color, ctx) => {
         capsule.p2.y - capsule.p1.y
     )
 
-    ctx.fillStyle = color
-    ctx.fill()
+    if (hitbox) {
+        ctx.strokeStyle = color
+        ctx.stroke()
+    }
+    else {
+        ctx.fillStyle = color
+        ctx.fill()
+    }
     ctx.closePath()
 }
 
@@ -165,43 +175,40 @@ const draw_circle = (circleObj, color, ctx) => {
 }
 
 const draw_sprite = (obj) => {
-    if (!obj.sprite || !obj.sprite.complete) return
+    if (!obj.sprite || !obj.sprite.complete) return;
 
-    let minX = Infinity
-    let maxX = -Infinity
-    let minY = Infinity
-    let maxY = -Infinity
+    const center = getCenter(obj)
+    let drawWidth = obj.sprite.width
+    let drawHeight = obj.sprite.height
+
+    ctx_dyn.save()
+
+    ctx_dyn.translate(center.x, center.y)
 
     if (obj instanceof Capsule) {
-        minX = Math.min(obj.p1.x, obj.p2.x) - obj.radius
-        maxX = Math.max(obj.p1.x, obj.p2.x) + obj.radius
-        minY = Math.min(obj.p1.y, obj.p2.y) - obj.radius
-        maxY = Math.max(obj.p1.y, obj.p2.y) + obj.radius
+        const skeletonHeight = Math.abs(obj.p2.y - obj.p1.y)
+        drawWidth = obj.radius * 2
+        drawHeight = skeletonHeight + (obj.radius * 2)
     }
     else if (obj instanceof Circle) {
-        minX = obj.center.x - obj.radius
-        maxX = obj.center.x + obj.radius
-        minY = obj.center.y - obj.radius
-        maxY = obj.center.y + obj.radius
+        drawWidth = obj.radius * 2
+        drawHeight = obj.radius * 2
     }
     else if (obj instanceof Polygon) {
-        for (let p of obj.vertices) {
-            if (p.x < minX) minX = p.x
-            if (p.x > maxX) maxX = p.x
-            if (p.y < minY) minY = p.y
-            if (p.y > maxY) maxY = p.y
-        }
+        const aabb = getAABB(obj)
+        drawWidth = aabb.maxX - aabb.minX
+        drawHeight = aabb.maxY - aabb.minY
     }
-    
-    minX = Math.round(minX)
-    maxX = Math.round(maxX)
-    minY = Math.round(minY)
-    maxY = Math.round(maxY)
 
-    const width = maxX - minX
-    const height = maxY - minY
+    ctx_dyn.drawImage(
+        obj.sprite,
+        -drawWidth / 2,
+        -drawHeight / 2,
+        drawWidth,
+        drawHeight
+    )
 
-    ctx_dyn.drawImage(obj.sprite, minX, minY, width, height)
+    ctx_dyn.restore()
 }
 
 const dotProduct = (v1, v2) => v1.x * v2.x + v1.y * v2.y;
@@ -278,31 +285,32 @@ const projectShape = (shape, axis) => {
 }
 
 const getCenter = (obj) => {
-    if (obj.p1 && obj.radius) {
+    if (obj instanceof Capsule) {
         return {
             x: (obj.p1.x + obj.p2.x) / 2,
             y: (obj.p1.y + obj.p2.y) / 2
         }
     }
-    if (obj.radius) {
+    if (obj instanceof Circle) {
         return {
             x: obj.center.x,
             y: obj.center.y
         }
     }
+    if (obj instanceof Polygon) {
+        let cx = 0
+        let cy = 0
 
-    let cx = 0
-    let cy = 0
+        for (let p of obj.vertices) {
+            cx += p.x
+            cy += p.y
+        }
 
-    for (let p of obj.vertices) {
-        cx += p.x
-        cy += p.y
-    }
-
-    return {
-        x: cx / obj.vertices.length,
-        y: cy / obj.vertices.length
-    }
+        return {
+            x: cx / obj.vertices.length,
+            y: cy / obj.vertices.length
+        }
+    }
 }
 
 const getAABB = (shape) => {
@@ -643,11 +651,11 @@ const update_acceleration = (deltaTime) => {
     const falling_acceleration = 2000
     const friction = 0.98
 
-    if (keys.a) player.velocity.x -= acceleration * deltaTime
-    if (keys.d) player.velocity.x += acceleration * deltaTime
+    if (keys.KeyA) player.velocity.x -= acceleration * deltaTime
+    if (keys.KeyD) player.velocity.x += acceleration * deltaTime
 
     for (let obj of GameObject.dynamicGameObjects) {
-        obj.velocity.x *= friction
+        obj.velocity.x *= friction ** (deltaTime * 60)
         obj.velocity.y += falling_acceleration * deltaTime
     }
 
@@ -682,23 +690,22 @@ const clearCanvas = () => {
 }
 
 const keys = {
-    w: false,
-    a: false,
-    s: false,
-    d: false
+    KeyW: false,
+    KeyA: false,
+    KeyS: false,
+    KeyD: false,
+    Space: false
 }
 
 window.addEventListener("keydown", (e) => {
-    const key = e.key.toLowerCase()
-    if(keys.hasOwnProperty(key)) keys[key] = true
-    if (key === " ") {
+    if(keys.hasOwnProperty(e.code)) keys[e.code] = true
+    if (e.code === "Space") {
         jumpBufferTimer = JUMP_BUFFER_TIME
     }
 })
 
 window.addEventListener("keyup", (e) => {
-    const key = e.key.toLowerCase()
-    if(keys.hasOwnProperty(key)) keys[key] = false
+    if(keys.hasOwnProperty(e.code)) keys[e.code] = false
 })
 
 const gameLoop = (timestamp) => {
