@@ -253,7 +253,7 @@ const getCircleAxis = (circle, poly) => {
 }
 
 const projectShape = (shape, axis) => {
-    if (shape.p1 && shape.radius) {
+    if (shape instanceof Capsule) {
         const proj1 = dotProduct(shape.p1, axis)
         const proj2 = dotProduct(shape.p2, axis)
 
@@ -263,7 +263,7 @@ const projectShape = (shape, axis) => {
         return {min, max}
     }
 
-    if (shape.radius) {
+    if (shape instanceof Circle) {
         const projection = dotProduct(shape.center, axis)
         return {
             min: projection - shape.radius,
@@ -271,17 +271,19 @@ const projectShape = (shape, axis) => {
         }
     }
 
-    let min = dotProduct(shape.vertices[0], axis)
-    let max = min
+    if (shape instanceof Polygon) {
+        let min = dotProduct(shape.vertices[0], axis)
+        let max = min
 
-    for (let i = 1; i < shape.vertices.length; i++) {
-        const projection = dotProduct(shape.vertices[i], axis)
+        for (let i = 1; i < shape.vertices.length; i++) {
+            const projection = dotProduct(shape.vertices[i], axis)
 
-        if (projection < min) min = projection
-        if (projection > max) max = projection
-    }
+            if (projection < min) min = projection
+            if (projection > max) max = projection
+        }
 
-    return {min, max}
+        return {min, max}
+    }
 }
 
 const getCenter = (obj) => {
@@ -314,7 +316,7 @@ const getCenter = (obj) => {
 }
 
 const getAABB = (shape) => {
-    if (shape.p1 && shape.radius) {
+    if (shape instanceof Capsule) {
         return {
             minX: Math.min(shape.p1.x, shape.p2.x) - shape.radius,
             maxX: Math.max(shape.p1.x, shape.p2.x) + shape.radius,
@@ -323,7 +325,7 @@ const getAABB = (shape) => {
         }
     }
 
-    if (shape.radius) {
+    if (shape instanceof Circle) {
         return {
             minX: shape.center.x - shape.radius,
             maxX: shape.center.x + shape.radius,
@@ -332,17 +334,19 @@ const getAABB = (shape) => {
         }
     }
 
-    let minX = Infinity, maxX = -Infinity;
-    let minY = Infinity, maxY = -Infinity;
+    if (shape instanceof Polygon) {
+        let minX = Infinity, maxX = -Infinity;
+        let minY = Infinity, maxY = -Infinity;
 
-    for (let p of shape.vertices) {
-        if (p.x < minX) minX = p.x
-        if (p.x > maxX) maxX = p.x
-        if (p.y < minY) minY = p.y
-        if (p.y > maxY) maxY = p.y
-    }
+        for (let p of shape.vertices) {
+            if (p.x < minX) minX = p.x
+            if (p.x > maxX) maxX = p.x
+            if (p.y < minY) minY = p.y
+            if (p.y > maxY) maxY = p.y
+        }
 
-    return {minX, maxX, minY, maxY}
+        return {minX, maxX, minY, maxY}
+    }
 }
 
 const getCapsuleNormal = (capsule) => {
@@ -387,8 +391,7 @@ const check_collision = (objA, objB) => {
         return false
     }
 
-
-    if (objA.radius && !objA.p1 && objB.radius && !objB.p1) {
+    if (objA instanceof Circle && objB instanceof Circle) {
         const dx = objA.center.x - objB.center.x
         const dy = objA.center.y - objB.center.y
         const distance = Math.sqrt(dx**2 + dy**2)
@@ -406,28 +409,28 @@ const check_collision = (objA, objB) => {
 
     const allAxes = []
 
-    if (objA.vertices) allAxes.push(...getAxes(objA.vertices))
+    if (objA instanceof Polygon) allAxes.push(...getAxes(objA.vertices))
     else if (objA.radius && !objA.p1 && objB.vertices) allAxes.push(getCircleAxis(objA, objB))
 
-    if (objB.vertices) allAxes.push(...getAxes(objB.vertices))
+    if (objB instanceof Polygon) allAxes.push(...getAxes(objB.vertices))
     else if (objB.radius && !objB.p1 && objA.vertices) allAxes.push(getCircleAxis(objB, objA))
 
-    if (objA.p1 && objA.radius) {
+    if (objA instanceof Capsule) {
         allAxes.push(getCapsuleNormal(objA))
-        if (objB.vertices) {
+        if (objB instanceof Polygon) {
             allAxes.push(getCircleAxis({center: {x: objA.p1.x, y: objA.p1.y}}, objB))
             allAxes.push(getCircleAxis({center: {x: objA.p2.x, y: objA.p2.y}}, objB))
-        } else if (objB.radius && !objB.p1) {
+        } else if (objB instanceof Circle) {
             allAxes.push(getCapsuleCircleAxis(objA, objB))
         }
     }
 
-    if (objB.p1 && objB.radius) {
+    if (objB instanceof Capsule) {
         allAxes.push(getCapsuleNormal(objB))
-        if (objA.vertices) {
+        if (objA instanceof Polygon) {
             allAxes.push(getCircleAxis({center: {x: objB.p1.x, y: objB.p1.y}}, objA))
             allAxes.push(getCircleAxis({center: {x: objB.p2.x, y: objB.p2.y}}, objA))
-        } else if (objA.radius && !objA.p1) {
+        } else if (objA instanceof Circle) {
             allAxes.push(getCapsuleCircleAxis(objB, objA))
         }
     }
@@ -486,30 +489,30 @@ const resolvePosition = (objA, objB, normal, depth) => {
     const pushX_B = normal.x * pushFactorB
     const pushY_B = normal.y * pushFactorB
     
-    if (objA.p1 && objA.radius) {
+    if (objA instanceof Capsule) {
         objA.p1.x -= pushX_A; objA.p1.y -= pushY_A;
         objA.p2.x -= pushX_A; objA.p2.y -= pushY_A;
     }
-    else if (objA.radius){
+    else if (objA instanceof Circle){
         objA.center.x -= pushX_A
         objA.center.y -= pushY_A
     }
-    else {
+    else if (objA instanceof Polygon) {
         for (let p of objA.vertices) {
             p.x -= pushX_A
             p.y -= pushY_A
         }
     }
 
-    if (objB.p1 && objB.radius) {
+    if (objB instanceof Capsule) {
         objB.p1.x += pushX_B; objB.p1.y += pushY_B;
         objB.p2.x += pushX_B; objB.p2.y += pushY_B;
     }
-    else if (objB.radius ) {
+    else if (objB instanceof Circle) {
         objB.center.x += pushX_B
         objB.center.y += pushY_B
     }
-    else {
+    else if (objB instanceof Polygon) {
         for (let p of objB.vertices) {
             p.x += pushX_B
             p.y += pushY_B
@@ -559,22 +562,6 @@ const updatePhysics = (objects) => {
 
             if (collision && collision.isColliding) {
                 resolveCollision(objA, objB, collision)
-                let IsPlayer = objA.tag === "player" || objB.tag === "player"
-                let IsGround = objA.tag === "ground" || objB.tag === "ground"
-                if (IsPlayer && IsGround) {
-                    grounded = true
-                }
-                let player = (objA.tag === "player") ? objA : (objB.tag === "player") ? objB : null
-                let other = (objA.tag === "player") ? objB : (objB.tag === "player") ? objA : null
-                if (player && other && other.tag === "ball") {
-                    const playerPos = getCenter(player);
-                    const ballPos = getCenter(other);
-                    let normal = (objA === player) ? collision.normal : {x: -collision.normal.x, y: -collision.normal.y};
-                    console.log(normal)
-                    if (normal.y > 0.5 && Math.abs(playerPos.x - ballPos.x) < 30) {
-                        other.center.y -= 600
-                    }
-                }
             }
         }
     }
@@ -586,19 +573,19 @@ const check_border_collision = (obj) => {
     let minY = Infinity;
     let maxY = -Infinity;
 
-    if (obj.p1 && obj.radius) {
+    if (obj instanceof Capsule) {
         minX = Math.min(obj.p1.x, obj.p2.x) - obj.radius;
         maxX = Math.max(obj.p1.x, obj.p2.x) + obj.radius;
         minY = Math.min(obj.p1.y, obj.p2.y) - obj.radius;
         maxY = Math.max(obj.p1.y, obj.p2.y) + obj.radius;
     }
-    else if (obj.radius) {
+    else if (obj instanceof Circle) {
         minX = obj.center.x - obj.radius
         maxX = obj.center.x + obj.radius
         minY = obj.center.y - obj.radius
         maxY = obj.center.y + obj.radius
     }
-    else {
+    else if (obj instanceof Polygon) {
         for (let p of obj.vertices) {
             if (p.x < minX) minX = p.x;
             if (p.x > maxX) maxX = p.x;
