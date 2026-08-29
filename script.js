@@ -37,7 +37,8 @@ class GameObject {
         restitution = 1, 
         color = "white",
         sprite = null,
-        dynamic = true
+        dynamic = true,
+        OnCollision = null
     } = {}) {
         this.velocity = velocity;
         this.mass = mass;
@@ -46,7 +47,8 @@ class GameObject {
         this.restitution = restitution;
         this.color = color;
         this.sprite = sprite;
-        this.dynamic = dynamic
+        this.dynamic = dynamic;
+        this.OnCollision = OnCollision
 
         GameObject.allGameObjects.push(this)
         if (dynamic) {
@@ -90,7 +92,12 @@ let player = new Capsule({
     radius: 40,
     tag: "player",
     color: "black",
-    sprite: playerSprite
+    sprite: playerSprite,
+    OnCollision: (other, normal, depth) => {
+        if (other.tag === "ground") {
+            grounded = true
+        }
+    }
 });
 
 let ground = new Polygon({
@@ -105,7 +112,6 @@ let ground = new Polygon({
     dynamic : false,
     restitution: 0,
 })
-
 
 const draw_objects = (objects, ctx) => {
     for (let obj of objects) {
@@ -563,6 +569,15 @@ const updatePhysics = (objects) => {
             if (collision && collision.isColliding) {
                 resolveCollision(objA, objB, collision)
             }
+
+            if (typeof objA.OnCollision === "function") {
+                objA.OnCollision(objB, collision.normal, collision.depth)
+            }
+
+            if (typeof objB.OnCollision === "function") {
+                const invertedNormal = {x: -collision.normal.x, y: -collision.normal.y}
+                objB.OnCollision(objA, invertedNormal, collision.depth)
+            }
         }
     }
 }
