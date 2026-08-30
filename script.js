@@ -30,6 +30,8 @@ class GameObject {
     static staticGameObjects = []
 
     constructor({
+        position =  {x: 0, y: 0},
+        angle = 0,
         velocity = {x: 0, y: 0}, 
         mass = 1, 
         invMass = 1, 
@@ -40,6 +42,8 @@ class GameObject {
         dynamic = true,
         OnCollision = null
     } = {}) {
+        this.position = position;
+        this.angle = angle;
         this.velocity = velocity;
         this.mass = mass;
         this.invMass = invMass;
@@ -60,52 +64,103 @@ class GameObject {
             GameObject.staticGameObjects.push(this)
         }
     }
+
+    updateTransform() {}
 }
 
 class Polygon extends GameObject {
-    constructor({vertices = [], ...rest} = {}) {
+    constructor({localVertices = [], ...rest} = {}) {
         super(rest)
-        this.vertices = vertices
+        this.localVertices = localVertices
+        this.vertices = []
+        this.updateTransform()
+    }
+
+    updateTransform() {
+        this.vertices = []
+        const cos = Math.cos(this.angle)
+        const sin = Math.sin(this.angle)
+
+        for (let p of this.localVertices) {
+            this.vertices.push({
+                x: this.position.x + (p.x * cos - p.y * sin),
+                y: this.position.y + (p.x * sin - p.y * cos)
+            })
+        }
     }
 }
 
 class Circle extends GameObject {
-    constructor({center = {x: 0, t: 0}, radius = 1, ...rest} = {}) {
+    constructor({radius = 1, ...rest} = {}) {
         super(rest)
-        this.center = center
         this.radius = radius
+        this.center = {x: this.position.x , y: this.position.y}
+    }
+
+    updateTransform() {
+        this.center.x = this.position.x
+        this.center.y = this.position.y
     }
 }
 
 class Capsule extends GameObject{
-    constructor({p1 = {x: 0, y: 0}, p2 = {x: 0, y: 0}, radius = 1, ...rest} = {}) {
+    constructor({length = 50, radius = 1, ...rest} = {}) {
         super(rest)
-        this.p1 = p1
-        this.p2 = p2
+        this.length = length
         this.radius = radius
+        this.p1 = {x: 0, y: 0}
+        this.p2 = {x: 0, y: 0}
+        this.updateTransform()
+    }
+
+    updateTransform() {
+        const halfLen = this.length / 2
+        const cos = Math.cos(this.angle)
+        const sin = Math.sin(this.angle)
+
+        this.p1 = {
+            x: this.position.x + halfLen * sin,
+            y: this.position.y - halfLen * cos
+        }
+
+        this.p2 = {
+            x: this.position.x - halfLen * sin,
+            y: this.position.y + halfLen * cos
+        }
     }
 }
 
 let player = new Capsule({
-    p1: {x: 100, y: 300},
-    p2: {x: 100, y: 400},
+    position: {x: 100, y: 350},
+    length: 100,
     radius: 40,
     tag: "player",
     color: "black",
-    sprite: playerSprite,
+    //sprite: playerSprite,
     OnCollision: (other, normal, depth) => {
         if (other.tag === "ground") {
             grounded = true
         }
+        if (other === point) {
+            player.angle = degToRad(90)
+        }
     }
 });
 
+let point = new Circle({
+    position: {x: 500, y: 200},
+    radius: 10,
+    tag: "point",
+    color: "red"
+})
+
 let ground = new Polygon({
-    vertices : [
-        {x: 0, y: static_canvas.height - 100},
-        {x: static_canvas.width, y: static_canvas.height - 100},
-        {x: static_canvas.width, y: static_canvas.height},
-        {x: 0, y: static_canvas.height}
+    position: {x: static_canvas.width / 2, y: static_canvas.height - 50},
+    localVertices : [
+        {x: -static_canvas.width / 2, y: -50},
+        {x: static_canvas.width / 2, y: -50},
+        {x: static_canvas.width / 2, y: 50},
+        {x: -static_canvas.width / 2, y: 50}
     ],
     tag : "ground",
     color : "green",
@@ -133,15 +188,24 @@ const draw_objects = (objects, ctx) => {
 const draw_capsule = (capsule, color, ctx, hitbox = false) => {
     ctx.beginPath()
 
-    ctx.arc(capsule.p1.x, capsule.p1.y, capsule.radius, 0, Math.PI * 2)
-    ctx.arc(capsule.p2.x, capsule.p2.y, capsule.radius, 0, Math.PI * 2)
+    const dx = capsule.p2.x - capsule.p1.x
+    const dy = capsule.p2.y - capsule.p1.y
+    const length = Math.sqrt(dx ** 2 + dy ** 2)
 
-    ctx.rect(
-        capsule.p1.x - capsule.radius,
-        capsule.p1.y,
-        capsule.radius * 2,
-        capsule.p2.y - capsule.p1.y
-    )
+    if (length === 0) return
+
+    const nx = (-dy / length) * capsule.radius
+    const ny = (dx / length) * capsule.radius
+
+    ctx.arc(capsule.p1.x, capsule.p1.y, capsule.radius, Math.atan2(-dy, -dx) - Math.PI/2, Math.atan2(-dy, -dx) + Math.PI/2, false)
+    
+    ctx.lineTo(capsule.p2.x - nx, capsule.p2.y - ny)
+
+    ctx.arc(capsule.p2.x, capsule.p2.y, capsule.radius, Math.atan2(dy, dx) - Math.PI/2, Math.atan2(dy, dx) + Math.PI/2, false)
+
+    ctx.lineTo(capsule.p1.x + nx, capsule.p1.y + ny)
+
+    ctx.closePath()
 
     if (hitbox) {
         ctx.strokeStyle = color
@@ -151,7 +215,6 @@ const draw_capsule = (capsule, color, ctx, hitbox = false) => {
         ctx.fillStyle = color
         ctx.fill()
     }
-    ctx.closePath()
 }
 
 const draw_polygon = (polygon, color, ctx) => {
@@ -191,6 +254,10 @@ const draw_sprite = (obj) => {
 
     ctx_dyn.translate(center.x, center.y)
 
+    if (obj.angle !== 0) {
+        ctx_dyn.rotate(obj.angle)
+    }
+
     if (obj instanceof Capsule) {
         const skeletonHeight = Math.abs(obj.p2.y - obj.p1.y)
         drawWidth = obj.radius * 2
@@ -218,6 +285,7 @@ const draw_sprite = (obj) => {
 }
 
 const dotProduct = (v1, v2) => v1.x * v2.x + v1.y * v2.y;
+const degToRad = (degrees) => degrees * (Math.PI / 180)
 
 const getAxes = (vertices) => {
     const axes = []
@@ -252,10 +320,10 @@ const getCircleAxis = (circle, poly) => {
         y: circle.center.y - closestVertex.y
     }
 
-    const lenght = Math.sqrt(axis.x**2 + axis.y**2)
-    if (lenght === 0) return {x: 0, y: 1}
+    const length = Math.sqrt(axis.x**2 + axis.y**2)
+    if (length === 0) return {x: 0, y: 1}
 
-    return {x: axis.x / lenght, y: axis.y / lenght}
+    return {x: axis.x / length, y: axis.y / length}
 }
 
 const projectShape = (shape, axis) => {
@@ -293,32 +361,7 @@ const projectShape = (shape, axis) => {
 }
 
 const getCenter = (obj) => {
-    if (obj instanceof Capsule) {
-        return {
-            x: (obj.p1.x + obj.p2.x) / 2,
-            y: (obj.p1.y + obj.p2.y) / 2
-        }
-    }
-    if (obj instanceof Circle) {
-        return {
-            x: obj.center.x,
-            y: obj.center.y
-        }
-    }
-    if (obj instanceof Polygon) {
-        let cx = 0
-        let cy = 0
-
-        for (let p of obj.vertices) {
-            cx += p.x
-            cy += p.y
-        }
-
-        return {
-            x: cx / obj.vertices.length,
-            y: cy / obj.vertices.length
-        }
-    }
+    return obj.position
 }
 
 const getAABB = (shape) => {
@@ -358,9 +401,9 @@ const getAABB = (shape) => {
 const getCapsuleNormal = (capsule) => {
     const dx = capsule.p2.x - capsule.p1.x
     const dy = capsule.p2.y - capsule.p1.y
-    const lenght = Math.sqrt(dx**2 + dy**2)
+    const length = Math.sqrt(dx**2 + dy**2)
 
-    return {x: -dy / lenght, y: dx / lenght}
+    return {x: -dy / length, y: dx / length}
 }
 
 const getCapsuleCircleAxis = (capsule, circle) => {
@@ -382,10 +425,10 @@ const getCapsuleCircleAxis = (capsule, circle) => {
         y: circle.center.y - closestPoint.y
     }
 
-    const lenght = Math.sqrt(axis.x**2 + axis.y**2)
-    if (lenght === 0) return {x: 0, y: 1}
+    const length = Math.sqrt(axis.x**2 + axis.y**2)
+    if (length === 0) return {x: 0, y: 1}
 
-    return {x: axis.x / lenght, y: axis.y / lenght}
+    return {x: axis.x / length, y: axis.y / length}
 }
 
 const check_collision = (objA, objB) => {
@@ -483,47 +526,22 @@ const check_collision = (objA, objB) => {
 
 const resolvePosition = (objA, objB, normal, depth) => {
     const totalInvMass = objA.invMass + objB.invMass
+    if (totalInvMass === 0) return
 
-    if (totalInvMass === 0) return
+    const pushFactorA = depth * (objA.invMass / totalInvMass)
+    const pushFactorB = depth * (objB.invMass / totalInvMass)
 
-    const pushFactorA = depth * (objA.invMass / totalInvMass)
-    const pushFactorB = depth * (objB.invMass / totalInvMass)
-
-    const pushX_A = normal.x * pushFactorA
-    const pushY_A = normal.y * pushFactorA
-
-    const pushX_B = normal.x * pushFactorB
-    const pushY_B = normal.y * pushFactorB
-    
-    if (objA instanceof Capsule) {
-        objA.p1.x -= pushX_A; objA.p1.y -= pushY_A;
-        objA.p2.x -= pushX_A; objA.p2.y -= pushY_A;
+    if (objA.invMass !== 0) {
+        objA.position.x -= normal.x * pushFactorA
+        objA.position.y -= normal.y * pushFactorA
+        objA.updateTransform()
     }
-    else if (objA instanceof Circle){
-        objA.center.x -= pushX_A
-        objA.center.y -= pushY_A
-    }
-    else if (objA instanceof Polygon) {
-        for (let p of objA.vertices) {
-            p.x -= pushX_A
-            p.y -= pushY_A
-        }
-    }
 
-    if (objB instanceof Capsule) {
-        objB.p1.x += pushX_B; objB.p1.y += pushY_B;
-        objB.p2.x += pushX_B; objB.p2.y += pushY_B;
+    if (objB.invMass !== 0) {
+        objB.position.x -= normal.x * pushFactorB
+        objB.position.y -= normal.y * pushFactorB
+        objB.updateTransform()
     }
-    else if (objB instanceof Circle) {
-        objB.center.x += pushX_B
-        objB.center.y += pushY_B
-    }
-    else if (objB instanceof Polygon) {
-        for (let p of objB.vertices) {
-            p.x += pushX_B
-            p.y += pushY_B
-        }
-    }
 }
 
 const resolveVelocity = (objA, objB, normal) => {
@@ -568,16 +586,16 @@ const updatePhysics = (objects) => {
 
             if (collision && collision.isColliding) {
                 resolveCollision(objA, objB, collision)
-            }
 
-            if (typeof objA.OnCollision === "function") {
+                if (typeof objA.OnCollision === "function") {
                 objA.OnCollision(objB, collision.normal, collision.depth)
-            }
+                }
 
-            if (typeof objB.OnCollision === "function") {
-                const invertedNormal = {x: -collision.normal.x, y: -collision.normal.y}
-                objB.OnCollision(objA, invertedNormal, collision.depth)
-            }
+                if (typeof objB.OnCollision === "function") {
+                    const invertedNormal = {x: -collision.normal.x, y: -collision.normal.y}
+                    objB.OnCollision(objA, invertedNormal, collision.depth)
+                }
+            }
         }
     }
 }
@@ -626,25 +644,10 @@ const check_border_collision = (obj) => {
 
 const updatePositions = (deltaTime) => {
     for (let obj of GameObject.dynamicGameObjects) {
-        let moveX = obj.velocity.x * deltaTime
-        let moveY = obj.velocity.y * deltaTime
+        obj.position.x += obj.velocity.x * deltaTime
+        obj.position.y += obj.velocity.y * deltaTime
 
-        if(obj instanceof Capsule) {
-            obj.p1.x += moveX
-            obj.p1.y += moveY
-            obj.p2.x += moveX
-            obj.p2.y += moveY
-        }
-        else if (obj instanceof Circle) {
-            obj.center.x += moveX
-            obj.center.y += moveY
-        }
-        else if (obj instanceof Polygon) {
-            for (let p of obj.vertices) {
-                p.x += moveX
-                p.y += moveY
-            }
-        }
+        obj.updateTransform()
     }
 }
 
@@ -731,4 +734,5 @@ const gameLoop = (timestamp) => {
 }
 
 draw_objects(GameObject.staticGameObjects, ctx_static)
+console.log(GameObject.allGameObjects)
 requestAnimationFrame(gameLoop)
