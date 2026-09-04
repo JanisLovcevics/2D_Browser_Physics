@@ -30,6 +30,10 @@ class GameObject {
     static staticGameObjects = []
 
     constructor({
+        parent = null,
+        offset = {x: 0, y: 0},
+        localAngle = 0,
+        inheritRotation = true,
         position =  {x: 0, y: 0},
         angle = 0,
         spriteAngle = 0,
@@ -43,6 +47,10 @@ class GameObject {
         dynamic = true,
         OnCollision = null
     } = {}) {
+        this.parent = parent;
+        this.offset = offset;
+        this.localAngle = localAngle;
+        this.inheritRotation = inheritRotation;
         this.position = position;
         this.angle = angle;
         this.spriteAngle = spriteAngle;
@@ -57,14 +65,46 @@ class GameObject {
         this.OnCollision = OnCollision
 
         GameObject.allGameObjects.push(this)
-        if (dynamic) {
-            GameObject.dynamicGameObjects.push(this)
+        
+        if (dynamic || (this.parent && this.parent.dynamic)) {
+            if (!dynamic) {
+                this.mass = null;
+                this.invMass = 0;
+            }
+            GameObject.dynamicGameObjects.push(this);
+        } else {
+            this.mass = null;
+            this.invMass = 0;
+            GameObject.staticGameObjects.push(this);
+        }
+    }
+
+    SetParent(parentObject, offset = {x: 0, y: 0}, localAngle = 0) {
+        this.parent = parentObject
+        this.offset = offset
+        this.localAngle = localAngle
+    }
+
+    updateChildTransform() {
+        if (!this.parent) return
+
+        if (this.inheritRotation) {
+            this.angle = this.parent.angle + this.localAngle
         }
         else {
-            this.mass = null
-            this.invMass = 0
-            GameObject.staticGameObjects.push(this)
+            this.angle = this.localAngle
         }
+
+        const cos = Math.cos(this.parent.angle)
+        const sin = Math.sin(this.parent.angle)
+
+        const rotatedOffsetX = this.offset.x * cos - this.offset.y * sin
+        const rotatedOffsetY = this.offset.x * sin + this.offset.y * cos
+
+        this.position.x = this.parent.position.x + rotatedOffsetX
+        this.position.y = this.parent.position.y + rotatedOffsetY
+
+        this.updateTransform()
     }
 
     updateTransform() {}
@@ -149,6 +189,17 @@ let player = new Capsule({
     }
 });
 
+let gun = new Polygon({
+    localVertices: [
+        {x: 0, y: -5}, {x: 40, y: -5},
+        {x: 40, y: 5}, {x: 0, y: 5}
+    ],
+    parent: player,
+    offset: {x: 20, y: 0},
+    dynamic: false,
+    color: "black"
+});
+
 let point = new Circle({
     position: {x: 500, y: 200},
     radius: 10,
@@ -173,7 +224,6 @@ let ground = new Polygon({
 const draw_objects = (objects, ctx) => {
     for (let obj of objects) {
         if (obj.sprite) {
-            draw_capsule(obj, obj.color, ctx, true)
             continue
         }
         if (obj instanceof Capsule) {
@@ -253,14 +303,14 @@ const draw_sprite = (obj) => {
     let drawWidth = obj.sprite.width
     let drawHeight = obj.sprite.height
 
-    let currentAngle = obj.angle + obj.spriteAngle
+    let currentAngle = obj.angle + (obj.spriteAngle || 0 )
 
     ctx_dyn.save()
 
     ctx_dyn.translate(center.x, center.y)
 
-    if (obj.angle !== 0) {
-        ctx_dyn.rotate(obj.angle)
+    if (currentAngle !== 0) {
+        ctx_dyn.rotate(currentAngle)
     }
 
     if (obj instanceof Capsule) {
@@ -436,6 +486,8 @@ const getCapsuleCircleAxis = (capsule, circle) => {
 }
 
 const check_collision = (objA, objB) => {
+    if (objA.parent === objB || objB.parent === objA) return false
+
     const aabbA = getAABB(objA)
     const aabbB = getAABB(objB)
 
@@ -648,11 +700,19 @@ const check_border_collision = (obj) => {
 
 const updatePositions = (deltaTime) => {
     for (let obj of GameObject.dynamicGameObjects) {
-        obj.position.x += obj.velocity.x * deltaTime
-        obj.position.y += obj.velocity.y * deltaTime
+        if (!obj.parent) {
+            obj.position.x += obj.velocity.x * deltaTime
+            obj.position.y += obj.velocity.y * deltaTime
 
-        obj.updateTransform()
+            obj.updateTransform()
+        }
     }
+
+    for (let obj of GameObject.allGameObjects) {
+        if (obj.parent) {
+            obj.updateChildTransform()
+        }
+    }
 }
 
 const update_acceleration = (deltaTime) => {
@@ -664,8 +724,10 @@ const update_acceleration = (deltaTime) => {
     if (keys.KeyD) player.velocity.x += acceleration * deltaTime
 
     for (let obj of GameObject.dynamicGameObjects) {
-        obj.velocity.x *= friction ** (deltaTime * 60)
-        obj.velocity.y += falling_acceleration * deltaTime
+        if (!obj.parent) {
+            obj.velocity.x *= friction ** (deltaTime * 60)
+            obj.velocity.y += falling_acceleration * deltaTime
+        }
     }
 
     if (jumpBufferTimer > 0) {
