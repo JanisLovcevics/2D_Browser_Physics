@@ -32,6 +32,7 @@ class GameObject {
     constructor({
         position =  {x: 0, y: 0},
         angle = 0,
+        spriteAngle = 0,
         velocity = {x: 0, y: 0}, 
         mass = 1, 
         invMass = 1, 
@@ -44,6 +45,7 @@ class GameObject {
     } = {}) {
         this.position = position;
         this.angle = angle;
+        this.spriteAngle = spriteAngle;
         this.velocity = velocity;
         this.mass = mass;
         this.invMass = invMass;
@@ -136,7 +138,7 @@ let player = new Capsule({
     radius: 40,
     tag: "player",
     color: "black",
-    //sprite: playerSprite,
+    sprite: playerSprite,
     OnCollision: (other, normal, depth) => {
         if (other.tag === "ground") {
             grounded = true
@@ -171,6 +173,7 @@ let ground = new Polygon({
 const draw_objects = (objects, ctx) => {
     for (let obj of objects) {
         if (obj.sprite) {
+            draw_capsule(obj, obj.color, ctx, true)
             continue
         }
         if (obj instanceof Capsule) {
@@ -250,6 +253,8 @@ const draw_sprite = (obj) => {
     let drawWidth = obj.sprite.width
     let drawHeight = obj.sprite.height
 
+    let currentAngle = obj.angle + obj.spriteAngle
+
     ctx_dyn.save()
 
     ctx_dyn.translate(center.x, center.y)
@@ -259,9 +264,8 @@ const draw_sprite = (obj) => {
     }
 
     if (obj instanceof Capsule) {
-        const skeletonHeight = Math.abs(obj.p2.y - obj.p1.y)
         drawWidth = obj.radius * 2
-        drawHeight = skeletonHeight + (obj.radius * 2)
+        drawHeight = obj.length + (obj.radius * 2)
     }
     else if (obj instanceof Circle) {
         drawWidth = obj.radius * 2
