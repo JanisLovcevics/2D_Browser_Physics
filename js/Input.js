@@ -1,8 +1,12 @@
+import { changePolar } from "./main.js"
+
+
 export const keys = {
     KeyW: false,
     KeyA: false,
     KeyS: false,
     KeyD: false,
+    KeyR: false,
     Space: false
 }
 
@@ -24,6 +28,9 @@ export const setupInputListeners = () => {
         if (keys.hasOwnProperty(e.code)) keys[e.code] = true
         if (e.code === "Space") {
             jumpBufferTimer = JUMP_BUFFER_TIME
+        }
+        if (e.code === "KeyR") {
+            changePolar()
         }
     })
 

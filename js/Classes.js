@@ -15,12 +15,13 @@ export class GameObject {
         mass = 1, 
         invMass = 1, 
         tag = null,
-        restitution = 1, 
+        restitution = 0, 
         color = "white",
         sprite = null,
         dynamic = true,
         OnCollision = null,
-        zIndex = 0
+        zIndex = 0,
+        useGravity = true
     } = {}) {
         this.parent = parent;
         this.offset = offset;
@@ -39,6 +40,7 @@ export class GameObject {
         this.dynamic = dynamic;
         this.OnCollision = OnCollision;
         this.zIndex = zIndex;
+        this.useGravity = useGravity;
 
         GameObject.allGameObjects.push(this)
         

@@ -21,13 +21,27 @@ resizeCanvas(dyn_canvas)
 resizeCanvas(static_canvas)
 
 let grounded = false
+let polarPositive = true
+
+let chasingVelocity = 500
+
+export const changePolar = () => {
+    polarPositive = !polarPositive
+
+    if (polarPositive) {
+        player.color = "red"
+    }
+    else {
+        player.color = "blue"
+    }
+}
 
 const playerSprite = new Image()
 playerSprite.src = "./Sprites/human.png"
 
 let player = new Capsule({
-    position: {x: 400, y: 600},
-    length: 150,
+    position: {x: 100, y: 200},
+    length: 100,
     radius: 30,
     tag: "player",
     color: "black",
@@ -36,6 +50,19 @@ let player = new Capsule({
             grounded = true
         }
     }
+})
+
+let square = new Polygon({
+    position: {x: 300, y: 200},
+    localVertices: [{x: -50, y: -50},
+                    {x: 50, y: -50},
+                    {x: 50, y: 50},
+                    {x: -50, y: 50}
+    ],
+    tag: "polarPositive",
+    color: "red",
+    useGravity: false,
+    invMass: 0
 })
 
 let ground = new Polygon({
@@ -92,6 +119,7 @@ const update_acceleration = (deltaTime) => {
     for (let obj of GameObject.dynamicGameObjects) {
         if (!obj.parent) {
             obj.velocity.x *= friction ** (deltaTime * 60)
+        if (obj.useGravity)
             obj.velocity.y += falling_acceleration * deltaTime
         }
     }
